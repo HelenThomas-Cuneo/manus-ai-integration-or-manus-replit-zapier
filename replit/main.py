@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 MANUS_API_KEY = os.environ.get('MANUS_API_KEY', '')
 MANUS_API_BASE_URL = 'https://api.manus-ai.com'
 
+# WhatsApp Business Cloud API (Meta Graph API) configuration
+WHATSAPP_ACCESS_TOKEN = os.environ.get('WHATSAPP_ACCESS_TOKEN', '')
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get('WHATSAPP_PHONE_NUMBER_ID', '')
+WHATSAPP_VERIFY_TOKEN = os.environ.get('WHATSAPP_VERIFY_TOKEN', '')
+WHATSAPP_API_BASE_URL = 'https://graph.facebook.com/v19.0'
+
 
 @app.route('/')
 def home():
@@ -34,7 +40,9 @@ def home():
         'endpoints': {
             'webhook': '/webhook',
             'execute': '/execute',
-            'health': '/health'
+            'health': '/health',
+            'decompose': '/decompose',
+            'whatsapp_webhook': '/whatsapp/webhook'
         }
     })
 
@@ -247,6 +255,140 @@ def decompose_goal(goal: str, context: str = ''):
         
     except requests.exceptions.RequestException as e:
         logger.error(f"API request failed: {str(e)}")
+        raise
+
+
+@app.route('/whatsapp/webhook', methods=['GET', 'POST'])
+def whatsapp_webhook():
+    """
+    WhatsApp Business Cloud API (Meta Graph API) webhook endpoint
+
+    GET: Handles Meta's webhook verification handshake. Meta calls this with
+    'hub.mode', 'hub.verify_token' and 'hub.challenge' query params; we must
+    echo back 'hub.challenge' when the verify token matches.
+
+    POST: Receives inbound WhatsApp message/status notifications. Optionally
+    forwards received text messages to Manus.ai as a task via execute_manus_task.
+    """
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
+
+        if mode == 'subscribe' and token and WHATSAPP_VERIFY_TOKEN and token == WHATSAPP_VERIFY_TOKEN:
+            logger.info("WhatsApp webhook verified successfully")
+            return challenge, 200
+
+        logger.warning("WhatsApp webhook verification failed")
+        return jsonify({
+            'status': 'error',
+            'message': 'Verification failed'
+        }), 403
+
+    try:
+        payload = request.get_json()
+        logger.info(f"Received WhatsApp webhook: {payload}")
+
+        messages = extract_whatsapp_messages(payload)
+
+        forwarded = []
+        for message in messages:
+            text = message.get('text')
+            from_number = message.get('from')
+
+            if text:
+                try:
+                    result = execute_manus_task(
+                        goal=f"Respond to WhatsApp message from {from_number}: {text}",
+                        inputs=[text]
+                    )
+                    forwarded.append({'from': from_number, 'result': result})
+                except ValueError:
+                    # MANUS_API_KEY not configured - still acknowledge the webhook
+                    logger.info("Skipping Manus.ai forwarding: MANUS_API_KEY not configured")
+
+        return jsonify({
+            'status': 'received',
+            'messages': messages,
+            'forwarded': forwarded
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error processing WhatsApp webhook: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+def extract_whatsapp_messages(payload: dict):
+    """
+    Extract inbound text messages from a WhatsApp Cloud API webhook payload
+
+    Args:
+        payload: The raw webhook payload sent by Meta
+
+    Returns:
+        list: A list of dicts with 'from', 'id' and 'text' keys for each message
+    """
+    messages = []
+
+    if not payload:
+        return messages
+
+    for entry in payload.get('entry', []):
+        for change in entry.get('changes', []):
+            value = change.get('value', {})
+            for message in value.get('messages', []):
+                messages.append({
+                    'id': message.get('id'),
+                    'from': message.get('from'),
+                    'text': message.get('text', {}).get('body')
+                })
+
+    return messages
+
+
+def send_whatsapp_message(to: str, message: str):
+    """
+    Send a WhatsApp message via the WhatsApp Business Cloud API
+
+    Args:
+        to: Recipient phone number in international format (no leading '+')
+        message: The text message body to send
+
+    Returns:
+        dict: The API response
+    """
+    if not WHATSAPP_ACCESS_TOKEN:
+        raise ValueError("WHATSAPP_ACCESS_TOKEN not configured in environment variables")
+    if not WHATSAPP_PHONE_NUMBER_ID:
+        raise ValueError("WHATSAPP_PHONE_NUMBER_ID not configured in environment variables")
+
+    url = f"{WHATSAPP_API_BASE_URL}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        'Authorization': f'Bearer {WHATSAPP_ACCESS_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+
+    payload = {
+        'messaging_product': 'whatsapp',
+        'to': to,
+        'type': 'text',
+        'text': {'body': message}
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        result = response.json()
+        logger.info(f"WhatsApp message sent successfully to {to}")
+
+        return result
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"WhatsApp API request failed: {str(e)}")
         raise
 
 

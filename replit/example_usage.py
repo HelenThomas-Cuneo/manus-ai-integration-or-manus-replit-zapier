@@ -84,6 +84,52 @@ def test_webhook_trigger():
     print()
 
 
+def test_whatsapp_webhook_verification():
+    """Test the WhatsApp webhook verification handshake (GET)"""
+    print("Testing WhatsApp webhook verification...")
+
+    params = {
+        "hub.mode": "subscribe",
+        "hub.verify_token": "your_whatsapp_verify_token",
+        "hub.challenge": "challenge_accepted"
+    }
+
+    response = requests.get(f"{REPLIT_URL}/whatsapp/webhook", params=params)
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text}")
+    print()
+
+
+def test_whatsapp_inbound_message():
+    """Test receiving an inbound WhatsApp message (POST)"""
+    print("Testing inbound WhatsApp message...")
+
+    payload = {
+        "entry": [{
+            "changes": [{
+                "value": {
+                    "messages": [{
+                        "id": "wamid.example",
+                        "from": "15551234567",
+                        "text": {"body": "Hello from WhatsApp!"}
+                    }]
+                }
+            }]
+        }]
+    }
+
+    response = requests.post(
+        f"{REPLIT_URL}/whatsapp/webhook",
+        json=payload,
+        headers={"Content-Type": "application/json"}
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {json.dumps(response.json(), indent=2)}")
+    print()
+
+
 if __name__ == "__main__":
     print("Manus.ai Replit Integration - Example Usage\n")
     print("=" * 50)
@@ -98,6 +144,8 @@ if __name__ == "__main__":
     test_execute_task()
     test_decompose_goal()
     test_webhook_trigger()
+    test_whatsapp_webhook_verification()
+    test_whatsapp_inbound_message()
     
     print("=" * 50)
     print("All tests completed!")

@@ -99,9 +99,11 @@ manus-integration-template/
 │   ├── authentication.js       # Auth configuration
 │   ├── creates/                # Zapier actions
 │   │   ├── execute_task.js    # Execute task action
-│   │   └── decompose_goal.js  # Decompose goal action
+│   │   ├── decompose_goal.js  # Decompose goal action
+│   │   └── send_whatsapp_message.js  # Send WhatsApp message action
 │   ├── triggers/               # Zapier triggers
-│   │   └── task_completed.js  # Task completion trigger
+│   │   ├── task_completed.js  # Task completion trigger
+│   │   └── whatsapp_message_received.js  # Inbound WhatsApp message trigger
 │   ├── test/                   # Test files
 │   ├── package.json            # Node.js dependencies
 │   ├── .env.example           # Environment template
@@ -121,6 +123,8 @@ manus-integration-template/
 | `/webhook` | POST | Receive webhooks |
 | `/execute` | POST | Execute Manus.ai task |
 | `/decompose` | POST | Decompose goal |
+| `/whatsapp/webhook` | GET | Meta WhatsApp webhook verification handshake |
+| `/whatsapp/webhook` | POST | Receive inbound WhatsApp messages |
 
 ### Example Request
 
@@ -133,6 +137,41 @@ curl -X POST https://your-repl.repl.co/execute \
     "constraints": {"deadline": "2024-12-31T23:59:59"}
   }'
 ```
+
+### Example: Send a WhatsApp Message (Graph API)
+
+```bash
+curl -X POST "https://graph.facebook.com/v19.0/<PHONE_NUMBER_ID>/messages" \
+  -H "Authorization: Bearer <WHATSAPP_ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messaging_product": "whatsapp",
+    "to": "15551234567",
+    "type": "text",
+    "text": {"body": "Hello from Manus.ai!"}
+  }'
+```
+
+## 💬 WhatsApp Integration
+
+Both halves of this template support WhatsApp Business Cloud API (Meta Graph API) messaging:
+
+- **Replit**: `/whatsapp/webhook` handles Meta's verification handshake (`GET`) and inbound
+  messages (`POST`), optionally forwarding received text to Manus.ai.
+- **Zapier**: the `send_whatsapp_message` action sends messages, and the
+  `whatsapp_message_received` trigger fires Zaps on inbound messages.
+
+Required environment variables:
+
+| Variable | Used by | Description |
+|---|---|---|
+| `WHATSAPP_ACCESS_TOKEN` | Replit | Access token for the WhatsApp Business Cloud API |
+| `WHATSAPP_PHONE_NUMBER_ID` | Replit | Your WhatsApp Business phone number ID |
+| `WHATSAPP_VERIFY_TOKEN` | Replit | Secret string used for the Meta webhook verification handshake |
+
+The Zapier app does not use environment variables for these — instead, users enter
+`whatsapp_access_token` and `whatsapp_phone_number_id` as optional fields when connecting the
+integration (see [`zapier/README.md`](./zapier/README.md)).
 
 ## 🎯 Use Cases
 
@@ -148,6 +187,10 @@ Automate content generation for blogs, social media, and newsletters based on fo
 ### 4. Data Analysis Workflows
 Schedule regular data analysis tasks that pull from databases, analyze trends, and create visualizations.
 
+### 5. WhatsApp-Driven Automation
+Receive inbound WhatsApp messages, forward them to Manus.ai for analysis or response drafting, and
+send WhatsApp replies — all from a single Zap.
+
 ## 🛠️ Configuration
 
 ### Environment Variables
@@ -156,12 +199,18 @@ Schedule regular data analysis tasks that pull from databases, analyze trends, a
 ```bash
 MANUS_API_KEY=your_api_key_here
 PORT=5000
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token_here
+WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id_here
+WHATSAPP_VERIFY_TOKEN=a_shared_secret_you_choose_for_webhook_verification
 ```
 
 #### Zapier
 ```bash
 MANUS_API_KEY=your_api_key_here
 ```
+Zapier does not use environment variables for WhatsApp; `whatsapp_access_token` and
+`whatsapp_phone_number_id` are entered as optional connection fields when the integration is
+connected inside Zapier.
 
 ### Manus.ai API Configuration
 

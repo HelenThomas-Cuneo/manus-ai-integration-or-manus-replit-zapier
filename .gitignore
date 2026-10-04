@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node.js
+node_modules/
+
+# Environment files (never commit real secrets)
+.env
+*.env.local
+
+# OS / editor
+.DS_Store

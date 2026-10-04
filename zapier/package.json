@@ -1,0 +1,25 @@
+{
+  "name": "manus-ai-zapier-integration",
+  "version": "1.0.0",
+  "description": "Zapier Platform CLI app for integrating Manus.ai and WhatsApp Business Cloud API",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --timeout 20000 test/**/*.js",
+    "build": "zapier build",
+    "validate": "zapier validate"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "zapier-platform-core": "15.4.0"
+  },
+  "devDependencies": {
+    "chai": "4.3.10",
+    "mocha": "10.2.0",
+    "zapier-platform-cli": "15.4.0"
+  },
+  "private": true,
+  "license": "MIT"
+}
